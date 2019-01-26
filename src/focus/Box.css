@@ -1,0 +1,22 @@
+.box {
+    display: block;
+    width: 100px;
+    height: 100px;
+    line-height: 100px;
+    text-align: center;
+    margin: 1em;
+    border: 1px solid black;
+    background: rgba(0,0,0, .1);
+}
+
+.box.f-box{
+    background: rgba(0,0,0, .3);
+}
+
+.box.focused{
+    outline: 5px solid white;
+}
+
+.box.inline {
+    display: inline-block;
+}

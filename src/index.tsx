@@ -3,6 +3,9 @@ import ReactDOM from 'react-dom';
 import './index.css';
 import App from './App';
 import * as serviceWorker from './serviceWorker';
+import {getFocusManager} from './focus/GlobalFocusManager'
+
+getFocusManager()
 
 ReactDOM.render(<App />, document.getElementById('root'));
 
