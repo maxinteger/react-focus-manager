@@ -1,6 +1,5 @@
-import * as React from 'react'
-import { ReactChild, ReactElement, ReactNode } from 'react'
-import { Direction, getFocusManager, IFocusGroup } from './GlobalFocusManager'
+import React, { ReactChild, ReactElement, ReactNode } from 'react'
+import { Direction, getFocusManager, IFocusGroup, NavigationResult } from './GlobalFocusManager'
 import { clamp, overflow } from './utils'
 
 ///
@@ -10,6 +9,7 @@ export interface Focusable {
   focused?: boolean
   onAction?: () => void
   onHover?: () => void
+  skip?: FocusSkip
 }
 
 export enum FocusDirection {
@@ -23,6 +23,17 @@ export enum FocusEdgeAction {
   Lock
 }
 
+export enum FocusSkip {
+  None,
+  Forward,
+  Backward
+}
+
+enum Offset {
+  next = 1,
+  prev = -1
+}
+
 enum FocusableItemType {
   Element,
   Group
@@ -33,6 +44,7 @@ interface FocusableItem {
   focusKey: string
   childIndex: number
   onAction?: Focusable['onAction']
+  skip?: FocusSkip
   groupRef?: IFocusGroup
 }
 
@@ -42,6 +54,7 @@ interface Props {
   edgeAction?: FocusEdgeAction
   defaultKey?: Focusable['focusKey']
   resetFocusState?: boolean
+  skip?: FocusSkip
 }
 
 interface State {
@@ -55,7 +68,9 @@ interface State {
 export class FocusGroup extends React.Component<Props, State> implements IFocusGroup {
   static defaultProps = {
     dir: FocusDirection.Column,
-    edgeAction: FocusEdgeAction.Flow
+    edgeAction: FocusEdgeAction.Flow,
+    resetFocusState: false,
+    skip: FocusSkip.None
   }
 
   state = {
@@ -92,11 +107,12 @@ export class FocusGroup extends React.Component<Props, State> implements IFocusG
   }
 
   render(): React.ReactNode {
+    const { className } = this.props;
     const { focusIndex, focused, children } = this.state
     const currentFK = this.focusableItems[focusIndex].focusKey
 
     return (
-      <div>
+      <div className={`focus-group ${className || ''} ${focused ? 'focused' : ''}`}>
         {React.Children.map(children, el => {
           if (isElement(el) && el.props.focusKey) {
             return React.cloneElement(el, { focused: focused && el.props.focusKey === currentFK })
@@ -108,6 +124,8 @@ export class FocusGroup extends React.Component<Props, State> implements IFocusG
   }
 
   onFocus(): void {
+    const focusItem = this.focusableItems[this.state.focusIndex]
+    this.notifyFocusManger(focusItem)
     this.setState({ focused: true })
   }
 
@@ -119,26 +137,26 @@ export class FocusGroup extends React.Component<Props, State> implements IFocusG
     this.setState(newState)
   }
 
-  onNavigate(moveDir: Direction): boolean {
+  onNavigate(moveDir: Direction): NavigationResult {
     const { dir } = this.props
 
     if (dir === FocusDirection.Row) {
       switch (moveDir) {
         case Direction.Right:
-          return this.focusNextItem(+1)
+          return this.updateFocusIndex(Offset.next)
         case Direction.Left:
-          return this.focusNextItem(-1)
+          return this.updateFocusIndex(Offset.prev)
         default:
-          return true
+          return NavigationResult.Next
       }
     } else {
       switch (moveDir) {
         case Direction.Up:
-          return this.focusNextItem(-1)
+          return this.updateFocusIndex(Offset.prev)
         case Direction.Down:
-          return this.focusNextItem(+1)
+          return this.updateFocusIndex(Offset.next)
         default:
-          return true
+          return NavigationResult.Next
       }
     }
   }
@@ -148,19 +166,20 @@ export class FocusGroup extends React.Component<Props, State> implements IFocusG
   onEnter(): void {
     const { focusIndex } = this.state
     const item = this.focusableItems[focusIndex]
+    console.log('enter: ', item)
     if (item && item.onAction) {
       item.onAction()
     }
   }
 
-  private focusNextItem(offset: number): boolean {
+  private updateFocusIndex(offset: Offset): NavigationResult {
     const { edgeAction } = this.props
     const lastIndex = this.focusableItems.length - 1
     let focusIndex = this.state.focusIndex + offset
 
     switch (edgeAction) {
       case FocusEdgeAction.Flow:
-        if (focusIndex < 0 || focusIndex > lastIndex) return true
+        if (focusIndex < 0 || focusIndex > lastIndex) return NavigationResult.Next
         break
       case FocusEdgeAction.Loop:
         focusIndex = overflow(focusIndex, 0, lastIndex)
@@ -170,16 +189,37 @@ export class FocusGroup extends React.Component<Props, State> implements IFocusG
         break
     }
 
-    const focusItem = this.focusableItems[focusIndex]
-    if (focusItem.type === FocusableItemType.Group && focusItem.groupRef) {
-      this.focusManager.setChildGroup(this, focusItem.groupRef)
-    } else {
-      this.focusManager.setGroup(this)
-    }
+    let focusItem = this.focusableItems[focusIndex]
+    do {
+      if (focusIndex < 0 || focusIndex > lastIndex) return NavigationResult.Next
 
+      if (
+        focusItem.skip &&
+        ((focusItem.skip === FocusSkip.Forward && offset === Offset.next) ||
+          (focusItem.skip === FocusSkip.Backward && offset === Offset.prev))
+      ) {
+        focusIndex += offset
+        focusItem = this.focusableItems[focusIndex]
+      } else {
+        break
+      }
+    } while (true)
+
+
+    this.notifyFocusManger(focusItem)
     this.setState({ focusIndex })
 
-    return false
+    return NavigationResult.StopPropagation
+  }
+
+  private notifyFocusManger(focusItem: FocusableItem){
+    if (focusItem) {
+      if (focusItem.type === FocusableItemType.Group && focusItem.groupRef) {
+        this.focusManager.setChildGroup(this, focusItem.groupRef)
+      } else {
+        this.focusManager.setGroup(this)
+      }
+    }
   }
 
   private onHover(focusKey: string) {
@@ -193,18 +233,25 @@ export class FocusGroup extends React.Component<Props, State> implements IFocusG
 
   private setFocusableItems(children: ReactNode): ReactNode {
     this.focusableItems = []
-    return this.prepChild(children)
+    return this.prepChild(children, new Set<string>())
   }
 
-  private prepChild(children: ReactNode): ReactNode {
+  private prepChild(children: ReactNode, focusKeySet: Set<string>): ReactNode {
     return React.Children.map(children, (el: ReactChild, childIndex) => {
       if (isElement(el)) {
         if (el.props.focusKey) {
           const focusKey = el.props.focusKey
+          if (focusKeySet.has(focusKey)) {
+            throw new Error(`Focus key must be unique inside the focus group: "${focusKey}"`)
+          } else {
+            focusKeySet.add(focusKey)
+          }
+
           this.focusableItems.push({
             type: FocusableItemType.Element,
             focusKey,
             childIndex,
+            skip: el.props.skip,
             onAction: el.props.onAction
           })
           return React.cloneElement(el, {
@@ -215,13 +262,14 @@ export class FocusGroup extends React.Component<Props, State> implements IFocusG
           const data: FocusableItem = {
             type: FocusableItemType.Group,
             focusKey: (this.continueFocusKey++).toString(),
+            skip: el.props.skip,
             childIndex
           }
           this.focusableItems.push(data)
           return React.cloneElement(el, { ref: (ref: FocusGroup) => (data.groupRef = ref) })
         } else {
           if (el.props.children) {
-            return this.prepChild(el.props.children)
+            return this.prepChild(el.props.children, focusKeySet)
           }
           return el
         }

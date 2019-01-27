@@ -14,12 +14,17 @@ enum Key {
 	DOWN = 0x28,
 }
 
+export enum NavigationResult {
+	Next,
+	StopPropagation
+}
+
 export interface IFocusGroup {
 	onFocus(): void
 
 	onBlur(): void
 
-	onNavigate(dir: Direction): boolean
+	onNavigate(dir: Direction): NavigationResult
 
 	onCancel(): void
 
@@ -87,7 +92,7 @@ class GlobalFocusManager {
 			const fg = this.stack[idx]
 
 			const result = this.handleNavigationKeys(fg, key)
-			if (result) {
+			if (result === NavigationResult.Next) {
 				this.handleNavigation(idx - 1, key)
 			}
 		}
