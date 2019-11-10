@@ -1,33 +1,9 @@
 import React, { ReactChild, ReactElement, ReactNode } from 'react'
-import { Direction, getFocusManager, IFocusGroup, NavigationResult } from './GlobalFocusManager'
-import { clamp, overflow } from './utils'
+import { getFocusManager, IFocusGroup, NavigationResult } from './GlobalFocusManager'
+import { clamp, overflow } from './utils/common'
+import { Direction, FocusDirection, FocusEdgeAction, FocusSkip } from './index'
 
 ///
-
-export interface Focusable {
-  focusKey: string
-  focused?: boolean
-  onAction?: () => void
-  onHover?: () => void
-  skip?: FocusSkip
-}
-
-export enum FocusDirection {
-  Row,
-  Column
-}
-
-export enum FocusEdgeAction {
-  Flow,
-  Loop,
-  Lock
-}
-
-export enum FocusSkip {
-  None,
-  Forward,
-  Backward
-}
 
 enum Offset {
   next = 1,
@@ -107,7 +83,7 @@ export class FocusGroup extends React.Component<Props, State> implements IFocusG
   }
 
   render(): React.ReactNode {
-    const { className } = this.props;
+    const { className } = this.props
     const { focusIndex, focused, children } = this.state
     const currentFK = this.focusableItems[focusIndex].focusKey
 
@@ -205,14 +181,13 @@ export class FocusGroup extends React.Component<Props, State> implements IFocusG
       }
     } while (true)
 
-
     this.notifyFocusManger(focusItem)
     this.setState({ focusIndex })
 
-    return NavigationResult.StopPropagation
+    return NavigationResult.KeepControl
   }
 
-  private notifyFocusManger(focusItem: FocusableItem){
+  private notifyFocusManger(focusItem: FocusableItem) {
     if (focusItem) {
       if (focusItem.type === FocusableItemType.Group && focusItem.groupRef) {
         this.focusManager.setChildGroup(this, focusItem.groupRef)

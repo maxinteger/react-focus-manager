@@ -15,4 +15,6 @@
 - [ ] exit from focus lock with ESC
 - [ ] extendability: devs can create new focus container and 
       it will work with the GlobalFocusManager and the FocusGroup  
-- [ ] handling dynamic focus groups (modals): activate/deactivate
+- [ ] handling component changes in focus groups/focuables
+- [ ] state management
+    - save focus and scroll states between pages 

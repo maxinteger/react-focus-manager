@@ -1,122 +1,120 @@
-export enum Direction {
-	Up,
-	Down,
-	Right,
-	Left
-}
+import { Direction } from './index'
 
 enum Key {
-	RETURN = 0x0D,
-	ESCAPE = 0x1B,
-	LEFT = 0x25,
-	UP = 0x26,
-	RIGHT = 0x27,
-	DOWN = 0x28,
+  RETURN = 0x0d,
+  ESCAPE = 0x1b,
+  LEFT = 0x25,
+  UP = 0x26,
+  RIGHT = 0x27,
+  DOWN = 0x28
 }
 
 export enum NavigationResult {
-	Next,
-	StopPropagation
+  Next,
+  KeepControl
 }
 
 export interface IFocusGroup {
-	onFocus(): void
+  onFocus(): void
 
-	onBlur(): void
+  onBlur(): void
 
-	onNavigate(dir: Direction): NavigationResult
+  onNavigate(dir: Direction): NavigationResult
 
-	onCancel(): void
+  onCancel(): void
 
-	onEnter(): void
+  onEnter(): void
 }
 
 class GlobalFocusManager {
-	private stack: IFocusGroup[] = []
+  private stack: IFocusGroup[] = []
 
-	constructor() {
-		window.addEventListener('keydown', this.onKeyDown)
-	}
+  constructor() {
+    window.addEventListener('keydown', this.onKeyDown)
+  }
 
-	public addFocusGroup(fg: IFocusGroup) {
-		if (!this.stack.length) {
-			this.pushActiveGroup(fg)
-		}
-	}
+  public addFocusGroup(fg: IFocusGroup) {
+    if (!this.stack.length) {
+      this.pushActiveGroup(fg)
+    }
+  }
 
-	public removeFocusGroup(fg: IFocusGroup) {
-		this.stack.length = this.stack.indexOf(fg)
-	}
+  public removeFocusGroup(fg: IFocusGroup) {
+    this.stack.length = this.stack.indexOf(fg)
+  }
 
-	public setGroup(group: IFocusGroup) {
-		const stack = this.stack
+  public setGroup(group: IFocusGroup) {
+    const stack = this.stack
 
-		const idx = stack.indexOf(group) + 1
-		stack.splice(idx).reverse().map(f => f.onBlur())
-	}
+    const idx = stack.indexOf(group) + 1
+    stack
+      .splice(idx)
+      .reverse()
+      .map(f => f.onBlur())
+  }
 
-	public setChildGroup(parent: IFocusGroup, activeFocusGroup: IFocusGroup) {
-		this.setGroup(parent)
-		this.pushActiveGroup(activeFocusGroup)
-	}
+  public setChildGroup(parent: IFocusGroup, activeFocusGroup: IFocusGroup) {
+    this.setGroup(parent)
+    this.pushActiveGroup(activeFocusGroup)
+  }
 
-	public replaceActiveGroup(fg: IFocusGroup) {
-		const prevFg = this.stack.pop()
-		if (prevFg) prevFg.onBlur()
-		this.pushActiveGroup(fg)
-	}
+  public replaceActiveGroup(fg: IFocusGroup) {
+    const prevFg = this.stack.pop()
+    if (prevFg) prevFg.onBlur()
+    this.pushActiveGroup(fg)
+  }
 
-	public pushActiveGroup(fg: IFocusGroup) {
-		this.stack.push(fg)
-		fg.onFocus()
-	}
+  public pushActiveGroup(fg: IFocusGroup) {
+    this.stack.push(fg)
+    fg.onFocus()
+  }
 
-	private onKeyDown = (event: KeyboardEvent) => {
-		const key: Key = event.keyCode
-		const lastIdx = this.stack.length - 1
-		const fg = this.stack[lastIdx]
+  private onKeyDown = (event: KeyboardEvent) => {
+    const key: Key = event.keyCode
+    const lastIdx = this.stack.length - 1
+    const fg = this.stack[lastIdx]
 
-		if (key in Key) event.preventDefault()
+    if (key in Key) event.preventDefault()
 
-		switch (key) {
-			case Key.RETURN:
-				return fg.onEnter()
-			case Key.ESCAPE:
-				return fg.onCancel()
-			default: return this.handleNavigation(lastIdx, key)
-		}
-	}
+    switch (key) {
+      case Key.RETURN:
+        return fg.onEnter()
+      case Key.ESCAPE:
+        return fg.onCancel()
+      default:
+        return this.handleNavigation(lastIdx, key)
+    }
+  }
 
-	private handleNavigation(idx: number, key: number) {
-		if (idx >= 0) {
-			const fg = this.stack[idx]
+  private handleNavigation(idx: number, key: number) {
+    if (idx >= 0) {
+      const fg = this.stack[idx]
 
-			const result = this.handleNavigationKeys(fg, key)
-			if (result === NavigationResult.Next) {
-				this.handleNavigation(idx - 1, key)
-			}
-		}
-	}
+      const result = this.handleNavigationKeys(fg, key)
+      if (result === NavigationResult.Next) {
+        this.handleNavigation(idx - 1, key)
+      }
+    }
+  }
 
-	private handleNavigationKeys(fg: IFocusGroup, key: number){
-		switch (key) {
-			case Key.LEFT:
-				return fg.onNavigate(Direction.Left)
-			case Key.UP:
-				return fg.onNavigate(Direction.Up)
-			case Key.RIGHT:
-				return fg.onNavigate(Direction.Right)
-			case Key.DOWN:
-				return fg.onNavigate(Direction.Down)
-			default:
-				return undefined
-		}
-	}
+  private handleNavigationKeys(fg: IFocusGroup, key: number) {
+    switch (key) {
+      case Key.LEFT:
+        return fg.onNavigate(Direction.Left)
+      case Key.UP:
+        return fg.onNavigate(Direction.Up)
+      case Key.RIGHT:
+        return fg.onNavigate(Direction.Right)
+      case Key.DOWN:
+        return fg.onNavigate(Direction.Down)
+      default:
+        return undefined
+    }
+  }
 
-
-	public destroy() {
-		window.removeEventListener('keydown', this.onKeyDown)
-	}
+  public destroy() {
+    window.removeEventListener('keydown', this.onKeyDown)
+  }
 }
 
 ///
@@ -124,8 +122,8 @@ class GlobalFocusManager {
 let manager: GlobalFocusManager
 
 export function getFocusManager(): GlobalFocusManager {
-	if (!manager) {
-		manager = new GlobalFocusManager()
-	}
-	return manager
+  if (!manager) {
+    manager = new GlobalFocusManager()
+  }
+  return manager
 }
